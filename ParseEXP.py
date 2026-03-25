@@ -157,6 +157,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
     saida.write(".global _start\n.arch armv7ve\n.text\n_start:\n\n")
 
     qtd_paren = 0
+    ult_tok = ("", "")
     for (tipo, valor) in tokens:
         match tipo:
             case "PAREN_ABRE":
@@ -169,7 +170,6 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                     saida.write("\tvpop {d0}\n")
                     saida.write("\tbl print_double\n")
                     saida.write("\tvpush {d0}\n")
-                pass
 
             case "NUMERO":
                 if valor is None:
@@ -179,6 +179,35 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                 saida.write(f"\tldr r0, =num_{valor.replace(".", "_")}\n")
                 saida.write(f"\tvldr d0, [r0]\n")
                 saida.write("\tvpush {d0}\n")
+
+            case "COMANDO":
+                match valor:
+                    case "RES":
+                        saida.write(f"\t// res\n")
+                        saida.write("\tvpop {d0}\n")
+                        saida.write("\tvcvt.s32.f64 s0, d0\n")
+                        saida.write("\tvmov r0, s0\n")
+                        saida.write("\tsub r0, #1\n")
+                        saida.write("\tmov r1, #8\n")
+                        saida.write("\tmul r0, r1\n")
+                        saida.write("\tadd r0, sp\n")
+                        saida.write("\tvldr d0, [r0]\n")
+                        saida.write("\tvpush {d0}\n")
+
+            case "VARIAVEL":
+                if ult_tok[0] == "PAREN_ABRE":
+                    # pegando valor da var
+                    saida.write(f"\t// pegar valor da var: {valor}\n")
+                    saida.write(f"\tldr r0, =var_{valor}\n")
+                    saida.write(f"\tvldr d0, [r0]\n")
+                    saida.write("\tvpush {d0}\n")
+                else:
+                    # guardando valor
+                    saida.write(f"\t// guardando valor da var: {valor}\n")
+                    saida.write("\tvpop {d0}\n")
+                    saida.write(f"\tldr r0, =var_{valor}\n")
+                    saida.write(f"\tvstr d0, [r0]\n")
+                    saida.write("\tvpush {d0}\n")
 
             case "OPERADOR":
                 match valor:
@@ -227,6 +256,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                     case _:
                         print(f"operador ainda não suportado: {valor}")
                         os._exit(1)
+        ult_tok = (tipo, valor)
     saida.write("\t// loop infinito\n")
     saida.write("\tb .\n")
 
@@ -418,6 +448,13 @@ entrada = [
     "(5 2 //)",
     "(10 4 %)",
     "(1.1 5 ^)",
+    "(4 RES)",
+    "(1 VAR)",
+    "(VAR)",
+    "(1.5 VAR)",
+    "(VAR)",
+    "((5 RES) ANT)",
+    "((ANT) 1.86 +)"
 ]
 
 tokens: list[tuple[str, str | None]] = []
