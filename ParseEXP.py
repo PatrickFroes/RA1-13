@@ -155,6 +155,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
     saida = open("saida.s", "w")
 
     saida.write(".global _start\n.arch armv7ve\n.text\n_start:\n\n")
+    saida.write("\tmov r7, #0\n")
 
     qtd_paren = 0
     ult_tok = ("", "")
@@ -170,6 +171,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                     saida.write("\tvpop {d0}\n")
                     saida.write("\tbl print_double\n")
                     saida.write("\tvpush {d0}\n")
+                    saida.write("\tsub r7, #1\n")
 
             case "NUMERO":
                 if valor is None:
@@ -179,6 +181,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                 saida.write(f"\tldr r0, =num_{valor.replace(".", "_")}\n")
                 saida.write(f"\tvldr d0, [r0]\n")
                 saida.write("\tvpush {d0}\n")
+                saida.write("\tadd r7, #1\n")
 
             case "COMANDO":
                 match valor:
@@ -186,8 +189,9 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                         saida.write(f"\t// res\n")
                         saida.write("\tvpop {d0}\n")
                         saida.write("\tvcvt.s32.f64 s0, d0\n")
-                        saida.write("\tvmov r0, s0\n")
-                        saida.write("\tsub r0, #1\n")
+                        saida.write("\tvmov r0, s0\n") # r0 tem qnt linhas pra tras a gnt quer
+                        saida.write("\tadd r0, r7\n")
+                        saida.write("\tsub r0, #2\n")
                         saida.write("\tmov r1, #8\n")
                         saida.write("\tmul r0, r1\n")
                         saida.write("\tadd r0, sp\n")
@@ -201,6 +205,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                     saida.write(f"\tldr r0, =var_{valor}\n")
                     saida.write(f"\tvldr d0, [r0]\n")
                     saida.write("\tvpush {d0}\n")
+                    saida.write("\tadd r7, #1\n")
                 else:
                     # guardando valor
                     saida.write(f"\t// guardando valor da var: {valor}\n")
@@ -216,42 +221,49 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tvadd.f64 d0, d1\n")
                         saida.write("\tvpush {d0}\n")
+                        saida.write("\tsub r7, #1\n")
 
                     case "-":
                         saida.write("\t// -\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tvsub.f64 d0, d1, d0\n")
                         saida.write("\tvpush {d0}\n")
+                        saida.write("\tsub r7, #1\n")
                         
                     case "*":
                         saida.write("\t// *\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tvmul.f64 d0, d1, d0\n")
                         saida.write("\tvpush {d0}\n")
+                        saida.write("\tsub r7, #1\n")
 
                     case "/":
                         saida.write("\t// /\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tvdiv.f64 d0, d1, d0\n")
                         saida.write("\tvpush {d0}\n")
+                        saida.write("\tsub r7, #1\n")
                         
                     case "//":
                         saida.write("\t// //\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tbl meu_div\n")
                         saida.write("\tvpush {d0}\n")
+                        saida.write("\tsub r7, #1\n")
 
                     case "%":
                         saida.write("\t// %\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tbl meu_mod\n")
                         saida.write("\tvpush {d0}\n")
+                        saida.write("\tsub r7, #1\n")
 
                     case "^":
                         saida.write("\t// ^\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tbl meu_pow\n")
                         saida.write("\tvpush {d0}\n")
+                        saida.write("\tsub r7, #1\n")
                         
                     case _:
                         print(f"operador ainda não suportado: {valor}")
@@ -263,7 +275,9 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
     # funcao de printar double, recebe em d0
     saida.write("""
 print_double:
-	push {r4, r5, r6}
+	push {r4}
+	push {r5}
+	push {r6}
 	// char[64]
 	sub sp, #64
 	// int neg = (v < 0); // r0
@@ -377,8 +391,10 @@ saida_seg_loop:
 	mov r1, sp
 	svc #0x123456
 	add sp, #12
-	pop {r4, r5, r6}
 	add sp, #64 // liberar bufer
+	pop {r6}
+	pop {r5}
+	pop {r4}
 	bx lr // return
 """)
 
@@ -454,7 +470,9 @@ entrada = [
     "(1.5 VAR)",
     "(VAR)",
     "((5 RES) ANT)",
-    "((ANT) 1.86 +)"
+    "((ANT) 1.86 +)",
+    "(122 1 +)",
+    "(543 (1 RES) +)",
 ]
 
 tokens: list[tuple[str, str | None]] = []
