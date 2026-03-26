@@ -1,10 +1,17 @@
-# Gabriel Antony: misfasol
+# Gabriel Antony Olsson Schlagenhaufer: misfasol
 # Patrick Froes: PatrickFroes
 # Grupo: RA1-3
 
+# Considerações sobre o trabalho:
+#   Nós não implementamos a função executarExpressao por não acharmos ela necessária,
+#   a verificação dos resultados do assembly foram feitas na mão.
+
 import os
+import sys
+from pathlib import Path
 
 
+# estado do analisador léxico que cuida de números depois do ponto
 def numero_ponto(entrada: str, tokens: list[tuple[str, str | None]]) -> tuple[str, str]:
     resto = entrada[0] # o resto começa com "."
     entrada = entrada[1:]
@@ -20,6 +27,7 @@ def numero_ponto(entrada: str, tokens: list[tuple[str, str | None]]) -> tuple[st
 
     return entrada, resto
 
+# estado do analisador léxico que cuida de números antes do ponto
 def estado_numero(entrada: str, tokens: list[tuple[str, str | None]]) -> str:
     numero = entrada[0]
     entrada = entrada[1:]
@@ -40,6 +48,7 @@ def estado_numero(entrada: str, tokens: list[tuple[str, str | None]]) -> str:
 
     return entrada
 
+# estado do analisador léxico que cuida de operadores
 def estado_operador(entrada: str, tokens: list[tuple[str, str | None]]) -> str:
     if entrada[0] == "+":
         tokens.append(("OPERADOR", "+"))
@@ -65,12 +74,14 @@ def estado_operador(entrada: str, tokens: list[tuple[str, str | None]]) -> str:
         entrada = entrada[1:]
     return entrada
 
+# estado do analisador léxico que cuida de identificadores
 def estado_identificador(entrada: str, tokens: list[tuple[str, str | None]]) -> str:
     identificador = ""
     while entrada and entrada[0].isalpha() and entrada[0].isupper():
         identificador += entrada[0]
         entrada = entrada[1:]
     
+    # verifica se é uma keyword
     if identificador == "RES":
         tokens.append(("COMANDO", "RES"))
     else:
@@ -125,7 +136,8 @@ def estado_parenteses(entrada: str, tokens: list[tuple[str, str | None]]) -> str
 
     return entrada
 
-def parseExpressao(entrada: str, tokens: list[tuple[str, str | None]]):
+# função que recebe uma linha da entrada e gera os tokens dela
+def parseExpressao(entrada: str, tokens: list[tuple[str, str | None]]) -> None:
     entrada = entrada.strip()
     match entrada[0]:
         case "(":
@@ -135,10 +147,12 @@ def parseExpressao(entrada: str, tokens: list[tuple[str, str | None]]):
         case _:
             raise Exception("devia ter parenteses no comeco da expressao:", entrada)
 
-def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
+# função que recebe os tokens e gera o assembly
+def gerarAssembly(tokens: list[tuple[str, str | None]]):
     variaveis: set[str] = set()
     numeros: set[str] = set()
 
+    # passar por todos os tokens e salvar quais variáveis ou números aparecem
     for (tipo, valor) in tokens:
         if tipo == "NUMERO":
             if valor is None:
@@ -148,15 +162,14 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
             if valor is None:
                 raise Exception("valor e None", valor)
             variaveis.add(valor)
-        
-    # print(variaveis)
-    # print(numeros)
     
-    saida = open("saida.s", "w")
+    # arquivo de saída
+    saida = open("saida.asm", "w")
 
     saida.write(".global _start\n.arch armv7ve\n.text\n_start:\n\n")
     saida.write("\tmov r7, #0\n")
 
+    # variáveis que ajudarão na criação do assembly
     qtd_paren = 0
     ult_tok = ("", "")
     for (tipo, valor) in tokens:
@@ -166,6 +179,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
 
             case "PAREN_FECHA":
                 qtd_paren -= 1
+                # quando fecha o último parênteses da linha, mostramos o valor resultante no terminal
                 if qtd_paren == 0:
                     saida.write("\t// terminou linha, printar ela\n")
                     saida.write("\tvpop {d0}\n")
@@ -174,9 +188,11 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                     saida.write("\tsub r7, #1\n")
 
             case "NUMERO":
+                # if para caso impossível (erro no analisador léxico)
                 if valor is None:
                     print(f"{valor} é None")
                     os._exit(1)
+                # não podemos utilizar vmov pois não é implementado no simulador
                 saida.write(f"\t// numero {valor}\n")
                 saida.write(f"\tldr r0, =num_{valor.replace(".", "_")}\n")
                 saida.write(f"\tvldr d0, [r0]\n")
@@ -189,7 +205,8 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                         saida.write(f"\t// res\n")
                         saida.write("\tvpop {d0}\n")
                         saida.write("\tvcvt.s32.f64 s0, d0\n")
-                        saida.write("\tvmov r0, s0\n") # r0 tem qnt linhas pra tras a gnt quer
+                        # r0 tem qnt linhas pra tras a gnt quer
+                        saida.write("\tvmov r0, s0\n")
                         saida.write("\tadd r0, r7\n")
                         saida.write("\tsub r0, #2\n")
                         saida.write("\tmov r1, #8\n")
@@ -245,6 +262,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                         saida.write("\tsub r7, #1\n")
                         
                     case "//":
+                        # utiliza a função meu_div em assembly
                         saida.write("\t// //\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tbl meu_div\n")
@@ -252,6 +270,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                         saida.write("\tsub r7, #1\n")
 
                     case "%":
+                        # utiliza a função meu_mod em assembly
                         saida.write("\t// %\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tbl meu_mod\n")
@@ -259,6 +278,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                         saida.write("\tsub r7, #1\n")
 
                     case "^":
+                        # utiliza a função meu_pow em assembly
                         saida.write("\t// ^\n")
                         saida.write("\tvpop {d0, d1}\n")
                         saida.write("\tbl meu_pow\n")
@@ -269,6 +289,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]) -> str:
                         print(f"operador ainda não suportado: {valor}")
                         os._exit(1)
         ult_tok = (tipo, valor)
+    # loop infinito para parar execução do programa
     saida.write("\t// loop infinito\n")
     saida.write("\tb .\n")
 
@@ -440,47 +461,81 @@ saida_meu_pow:
 	bx lr
 """)
     
+    # parte que injeta os números e variáveis no assembly final
     saida.write("\n.data\n")
 
+    # injeta as variáveis
     saida.write("// variaveis\n")
     for var in variaveis:
         saida.write(f"var_{var}: .double 0\n")
     saida.write("\n")
     
+    # injeta os números
     saida.write("// numeros\n")
     for numero in numeros:
         saida.write(f"num_{numero.replace(".", "_")}: .double {numero}\n")
     
     saida.close()
 
-    arq = open("saida.s", "r")
-    ass = arq.read()
-    arq.close()
-    return ass
+# função para ler um arquivo e retornar suas linhas
+def lerArquivo(caminho: str) -> list[str]:
+    expressoes: list[str] = []
+    with open(caminho) as arq:
+        linhas = arq.readlines()
+        for linha in linhas:
+            if linha.strip() != "":
+                expressoes.append(linha.strip())
+        
+    return expressoes
 
-entrada = [
-    "((2.5 1.0 -) 0.75 *)",
-    "(22 7 /)",
-    "(5 2 //)",
-    "(10 4 %)",
-    "(1.1 5 ^)",
-    "(4 RES)",
-    "(1 VAR)",
-    "(VAR)",
-    "(1.5 VAR)",
-    "(VAR)",
-    "((5 RES) ANT)",
-    "((ANT) 1.86 +)",
-    "(122 1 +)",
-    "(543 (1 RES) +)",
-]
+# função para exibição dos resultados
+def exibirResultados(erros: list[tuple[str, Exception]], arquivo: str) -> None:
+    if not erros:
+        print(f"{arquivo} compilado com sucesso!")
+        print(f"Gerados os arquivos tokens.py e saida.asm")
+    else:
+        print("Erros encontrados:")
+        for (linha, e) in erros:
+            print(f"Erro {e} encontrado na linha:\n'{linha.strip()}'")
 
-tokens: list[tuple[str, str | None]] = []
-[parseExpressao(linha, tokens) for linha in entrada]
+# função para salvar tokens para utilização posterior
+def salvar_tokens(tokens: list[tuple[str, str | None]]) -> None:
+    with open("tokens.py", "w") as arq:
+        arq.write("tokens: list[tuple[str, str | None]] = [\n")
+        for token in tokens:
+            arq.write(f"    {str(token)},\n")
+        arq.write("]\n")
 
-print(f"{entrada = }")
-[print(t) for t in tokens]
-print()
+# função main
+def main() -> None:
+    if len(sys.argv) != 2:
+        print("Erro na utilização do progama")
+        print("Utilização:")
+        print("    python ParseEXP.py NOME_DO_ARQUIVO")
+        return
+    
+    arquivo = sys.argv[1]
+    if not Path(arquivo).is_file():
+        print(f"Arquivo {arquivo} não econtrado")
+        return
 
-assembly = gerarAssembly(tokens)
-print("assembly:", assembly, sep="\n")
+    entrada = lerArquivo(arquivo)
+
+    tokens: list[tuple[str, str | None]] = []
+    erros: list[tuple[str, Exception]] = []
+    for linha in entrada:
+        try:
+            parseExpressao(linha, tokens)
+        except Exception as e:
+            erros.append((linha, e))
+
+    if not erros:
+        salvar_tokens(tokens)
+
+        gerarAssembly(tokens)
+
+    exibirResultados(erros, arquivo)
+
+
+if __name__ == "__main__":
+    main()
