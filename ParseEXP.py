@@ -100,10 +100,10 @@ def estado_parenteses(entrada: str, tokens: list[tuple[str, str | None]]) -> str
         entrada = estado_identificador(entrada, tokens)
     # caso de outro parenteses
     # caso de numero ou outro parenteses
-    elif entrada[0].isdigit() or entrada[0] == "(":
+    elif entrada[0].isdigit() or entrada[0] == "(" or entrada[0] == "-":
         if entrada[0] == "(":
             entrada = estado_parenteses(entrada, tokens)
-        elif entrada[0].isdigit():
+        elif entrada[0].isdigit() or entrada[0] == "-":
             entrada = estado_numero(entrada, tokens)
         else:
             pass # impossivel
@@ -114,10 +114,10 @@ def estado_parenteses(entrada: str, tokens: list[tuple[str, str | None]]) -> str
         if entrada[0].isalpha():
             entrada = estado_identificador(entrada, tokens)
         # caso de numero ou parenteses
-        elif entrada[0].isdigit() or entrada[0] == "(":
+        elif entrada[0].isdigit() or entrada[0] == "(" or entrada[0] == "-":
             if entrada[0] == "(":
                 entrada = estado_parenteses(entrada, tokens)
-            elif entrada[0].isdigit():
+            elif entrada[0].isdigit() or entrada[0] == "-":
                 entrada = estado_numero(entrada, tokens)
             else:
                 pass # impossivel
@@ -194,7 +194,7 @@ def gerarAssembly(tokens: list[tuple[str, str | None]]):
                     os._exit(1)
                 # não podemos utilizar vmov pois não é implementado no simulador
                 saida.write(f"\t// numero {valor}\n")
-                saida.write(f"\tldr r0, =num_{valor.replace(".", "_")}\n")
+                saida.write(f"\tldr r0, =num_{valor.replace(".", "_").replace("-", "_")}\n")
                 saida.write(f"\tvldr d0, [r0]\n")
                 saida.write("\tvpush {d0}\n")
                 saida.write("\tadd r7, #1\n")
@@ -473,7 +473,7 @@ saida_meu_pow:
     # injeta os números
     saida.write("// numeros\n")
     for numero in numeros:
-        saida.write(f"num_{numero.replace(".", "_")}: .double {numero}\n")
+        saida.write(f"num_{numero.replace(".", "_").replace("-", "_")}: .double {numero}\n")
     
     saida.close()
 
